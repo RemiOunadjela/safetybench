@@ -33,6 +33,16 @@ dependencies = [
     "jinja2>=3.1",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.1",
+]
+
+[project.scripts]
+safetybench = "safetybench.cli:cli"
+
 [project.urls]
 Homepage = "https://github.com/RemiOunadjela/safetybench"
 Repository = "https://github.com/RemiOunadjela/safetybench"
@@ -40,6 +50,9 @@ Issues = "https://github.com/RemiOunadjela/safetybench/issues"
 
 [tool.setuptools.packages.find]
 include = ["safetybench*"]
+
+[tool.setuptools.package-data]
+safetybench = ["templates/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

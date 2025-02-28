@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        :root {
+            --bg: #ffffff;
+            --fg: #1a1a2e;
+            --accent: #0f3460;
+            --border: #e0e0e0;
+            --muted: #6c757d;
+            --success: #198754;
+            --warning: #fd7e14;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.6;
+            color: var(--fg);
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+        h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: var(--accent); }
+        h2 { font-size: 1.3rem; margin: 2rem 0 0.8rem; border-bottom: 2px solid var(--accent); padding-bottom: 0.3rem; }
+        .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 2rem; }
+        .meta span { margin-right: 1.5rem; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+        th, td {
+            text-align: left;
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid var(--border);
+        }
+        th { background: var(--accent); color: white; font-weight: 600; }
+        tr:nth-child(even) { background: #f8f9fa; }
+        tr:hover { background: #e9ecef; }
+        .footer { margin-top: 3rem; color: var(--muted); font-size: 0.8rem; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>{{ title }}</h1>
+    <div class="meta">
+        <span>Samples: {{ "{:,}".format(metadata.get("n_samples", 0)) }}</span>
+        <span>Violations: {{ "{:,}".format(metadata.get("n_violations", 0)) }}</span>
+        <span>Threshold: {{ metadata.get("threshold", "N/A") }}</span>
+        <span>Generated: {{ generated_at }}</span>
+    </div>
+
+    <h2>Core Metrics</h2>
+    <table>
+        <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+        <tbody>
+        {% for name, value in metrics.items() %}
+            <tr>
+                <td>{{ display_name(name) }}</td>
+                <td>{{ format_value(name, value) }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    {% if per_category %}
+    <h2>Per-Category Breakdown</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Category</th>
+                {% set all_cat_metrics = [] %}
+                {% for cat, cat_metrics in per_category.items() %}
+                    {% for m in cat_metrics.keys() %}
+                        {% if m not in all_cat_metrics %}
+                            {% if all_cat_metrics.append(m) %}{% endif %}
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+                {% for m in all_cat_metrics|sort %}
+                    <th>{{ display_name(m) }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+        {% for cat, cat_metrics in per_category.items()|sort %}
+            <tr>
+                <td>{{ cat }}</td>
+                {% for m in all_cat_metrics|sort %}
+                    <td>{{ format_value(m, cat_metrics.get(m, 0)) }}</td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if per_market %}
+    <h2>Cross-Market Comparison</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Market</th>
+                {% set all_mkt_metrics = [] %}
+                {% for mkt, mkt_metrics in per_market.items() %}
+                    {% for m in mkt_metrics.keys() %}
+                        {% if m not in all_mkt_metrics %}
+                            {% if all_mkt_metrics.append(m) %}{% endif %}
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+                {% for m in all_mkt_metrics|sort %}
+                    <th>{{ display_name(m) }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+        {% for market, mkt_metrics in per_market.items()|sort %}
+            <tr>
+                <td>{{ market|upper }}</td>
+                {% for m in all_mkt_metrics|sort %}
+                    <td>{{ format_value(m, mkt_metrics.get(m, 0)) }}</td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if confidence_intervals %}
+    <h2>Confidence Intervals</h2>
+    <table>
+        <thead><tr><th>Metric</th><th>Estimate</th><th>CI Lower</th><th>CI Upper</th></tr></thead>
+        <tbody>
+        {% for name, ci in confidence_intervals.items() %}
+            <tr>
+                <td>{{ display_name(name) }}</td>
+                <td>{{ "%.4f"|format(ci[0]) }}</td>
+                <td>{{ "%.4f"|format(ci[1]) }}</td>
+                <td>{{ "%.4f"|format(ci[2]) }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <div class="footer">
+        Generated by safetybench v{{ metadata.get("version", "0.1.0") }}
+    </div>
+</body>
+</html>
