@@ -57,14 +57,14 @@ class TestSyntheticGenerator:
     def test_multi_market(self):
         config = GeneratorConfig(
             n_samples=3000,
-            markets=["us", "br"],
+            markets=["us", "br", "mx"],
             seed=42,
         )
         gen = SyntheticDataGenerator(config)
         df = gen.generate()
 
         markets = df["market"].unique()
-        assert set(markets) == {"us", "br"}
+        assert set(markets) == {"us", "br", "mx"}
 
     def test_categories_match_config(self):
         config = GeneratorConfig(
