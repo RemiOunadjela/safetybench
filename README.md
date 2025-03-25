@@ -3,6 +3,7 @@
 [![CI](https://github.com/RemiOunadjela/safetybench/actions/workflows/ci.yml/badge.svg)](https://github.com/RemiOunadjela/safetybench/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/safetybench.svg)](https://pypi.org/project/safetybench/)
 
 **Benchmarking Content Moderation at Scale**
 
@@ -134,6 +135,33 @@ safetybench compare --reports run1.json --reports run2.json --output comparison.
 | **Bootstrap CI** | Confidence intervals for any metric |
 | **McNemar's Test** | Comparing error rates of two classifiers on the same data |
 | **Permutation Test** | Non-parametric comparison of two groups |
+
+## Architecture
+
+```
+safetybench/
+├── metrics/           # Metric computation (detection, quality, latency, statistical)
+├── generators/        # Synthetic data generation with market-specific distributions
+├── evaluation/        # Evaluation runner, model comparator, threshold analysis
+├── reports/           # Markdown and HTML report generation
+└── cli.py             # Command-line interface
+```
+
+The evaluation pipeline:
+
+1. **Data** (real or synthetic) flows into the `EvaluationRunner`
+2. The runner computes all applicable metrics based on available columns
+3. Per-category and per-market breakdowns are computed automatically
+4. Bootstrap confidence intervals are added for key metrics
+5. Results are serialized to `EvaluationResult`, which can be exported as dict, DataFrame, or rendered as a report
+
+## Violation Categories
+
+The framework ships with distributions for 10 standard violation categories across 7 markets:
+
+`hate_speech` | `harassment` | `dangerous_acts` | `csam` | `violent_extremism` | `self_harm` | `spam` | `misinformation` | `nudity` | `regulated_goods`
+
+Market distributions are synthetic approximations inspired by publicly available transparency reports. They are useful for testing evaluation pipelines but should not be interpreted as reflecting any real-world prevalence data.
 
 ## Development
 
