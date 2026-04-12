@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from safetybench.metrics.detection import (
     action_rate,
@@ -192,3 +193,156 @@ class TestStatisticalMetrics:
         )
         assert "p_value" in result
         assert "observed_diff" in result
+
+
+class TestEdgeCasesEmptyInputs:
+    """Metric functions given zero-element arrays should return sensible defaults."""
+
+    def test_proactive_detection_rate_empty(self):
+        empty = np.array([], dtype=bool)
+        assert proactive_detection_rate(empty, empty, empty) == 0.0
+
+    def test_action_rate_empty(self):
+        empty = np.array([], dtype=bool)
+        assert action_rate(empty, empty) == 0.0
+
+    def test_zero_view_violation_rate_empty(self):
+        empty_bool = np.array([], dtype=bool)
+        empty_int = np.array([], dtype=np.int64)
+        assert zero_view_violation_rate(empty_int, empty_bool, empty_bool) == 0.0
+
+    def test_detection_rate_by_category_empty(self):
+        result = detection_rate_by_category(
+            np.array([], dtype=bool),
+            np.array([], dtype=bool),
+            pd.Series([], dtype=str),
+        )
+        assert result == {}
+
+    def test_false_positive_rate_at_threshold_empty(self):
+        empty_f = np.array([], dtype=float)
+        empty_b = np.array([], dtype=bool)
+        assert false_positive_rate_at_threshold(empty_f, empty_b, 0.5) == 0.0
+
+    def test_false_positive_rate_curve_empty(self):
+        empty_f = np.array([], dtype=float)
+        empty_b = np.array([], dtype=bool)
+        thresholds, fpr_vals = false_positive_rate_curve(empty_f, empty_b)
+        assert len(thresholds) == 50
+        assert (fpr_vals == 0.0).all()
+
+    def test_appeal_overturn_rate_empty(self):
+        empty = np.array([], dtype=bool)
+        assert appeal_overturn_rate(empty, empty) == 0.0
+
+    def test_precision_recall_empty(self):
+        empty_f = np.array([], dtype=float)
+        empty_b = np.array([], dtype=bool)
+        result = precision_recall_at_thresholds(empty_f, empty_b, np.array([0.5]))
+        assert result["precision"][0] == 0.0
+        assert result["recall"][0] == 0.0
+
+    def test_median_tta_empty(self):
+        empty_ts = pd.Series(dtype="datetime64[ns]")
+        assert np.isnan(median_time_to_action(empty_ts, empty_ts))
+
+    def test_tta_percentiles_empty(self):
+        empty_ts = pd.Series(dtype="datetime64[ns]")
+        result = time_to_action_percentiles(empty_ts, empty_ts)
+        assert all(np.isnan(v) for v in result.values())
+
+
+class TestEdgeCasesSingleSample:
+    """Metric functions given a single-element array should return exact values."""
+
+    def test_proactive_detection_rate_single_caught(self):
+        assert proactive_detection_rate(
+            np.array([True]), np.array([False]), np.array([True])
+        ) == 1.0
+
+    def test_proactive_detection_rate_single_missed(self):
+        assert proactive_detection_rate(
+            np.array([False]), np.array([False]), np.array([True])
+        ) == 0.0
+
+    def test_action_rate_single_actioned(self):
+        assert action_rate(np.array([True]), np.array([True])) == 1.0
+
+    def test_action_rate_single_not_actioned(self):
+        assert action_rate(np.array([False]), np.array([True])) == 0.0
+
+    def test_zero_view_violation_rate_single_zero_views(self):
+        assert zero_view_violation_rate(
+            np.array([0]), np.array([True]), np.array([True])
+        ) == 1.0
+
+    def test_zero_view_violation_rate_single_nonzero_views(self):
+        assert zero_view_violation_rate(
+            np.array([5]), np.array([True]), np.array([True])
+        ) == 0.0
+
+    def test_detection_rate_by_category_single(self):
+        result = detection_rate_by_category(
+            np.array([True]), np.array([True]), pd.Series(["hate"])
+        )
+        assert result["hate"] == 1.0
+
+    def test_false_positive_rate_single_flagged_negative(self):
+        # 1 negative, flagged → FPR = 1.0
+        assert false_positive_rate_at_threshold(
+            np.array([0.9]), np.array([False]), 0.5
+        ) == 1.0
+
+    def test_false_positive_rate_single_positive_only(self):
+        # No negatives → FPR = 0.0
+        assert false_positive_rate_at_threshold(
+            np.array([0.9]), np.array([True]), 0.5
+        ) == 0.0
+
+    def test_appeal_overturn_rate_single_overturned(self):
+        assert appeal_overturn_rate(np.array([True]), np.array([True])) == 1.0
+
+    def test_appeal_overturn_rate_single_upheld(self):
+        assert appeal_overturn_rate(np.array([True]), np.array([False])) == 0.0
+
+    def test_precision_recall_single_true_positive(self):
+        result = precision_recall_at_thresholds(
+            np.array([0.9]), np.array([True]), np.array([0.5])
+        )
+        assert result["precision"][0] == pytest.approx(1.0)
+        assert result["recall"][0] == pytest.approx(1.0)
+
+    def test_precision_recall_single_false_negative(self):
+        result = precision_recall_at_thresholds(
+            np.array([0.1]), np.array([True]), np.array([0.5])
+        )
+        assert result["precision"][0] == pytest.approx(0.0)
+        assert result["recall"][0] == pytest.approx(0.0)
+
+    def test_median_tta_single(self):
+        base = pd.Timestamp("2025-01-01")
+        created = pd.Series([base])
+        actioned = pd.Series([base + pd.Timedelta(seconds=42)])
+        assert median_time_to_action(created, actioned) == pytest.approx(42.0)
+
+    def test_tta_percentiles_single(self):
+        base = pd.Timestamp("2025-01-01")
+        created = pd.Series([base])
+        actioned = pd.Series([base + pd.Timedelta(seconds=60)])
+        result = time_to_action_percentiles(created, actioned, percentiles=[50.0, 99.0])
+        assert result["p50"] == pytest.approx(60.0)
+        assert result["p99"] == pytest.approx(60.0)
+
+    def test_bootstrap_ci_single(self):
+        # All bootstrap resamples equal the one value, so CI collapses to a point.
+        data = np.array([3.14])
+        est, lo, hi = bootstrap_ci(data, seed=0)
+        assert est == pytest.approx(3.14)
+        assert lo == pytest.approx(3.14)
+        assert hi == pytest.approx(3.14)
+
+    def test_mcnemar_single_both_correct(self):
+        result = mcnemar_test(
+            np.array([True]), np.array([True]), np.array([True])
+        )
+        assert result["p_value"] == 1.0
