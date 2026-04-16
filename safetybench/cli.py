@@ -11,6 +11,7 @@ import pandas as pd
 
 from safetybench.evaluation.runner import EvaluationConfig, EvaluationRunner
 from safetybench.generators.synthetic import GeneratorConfig, SyntheticDataGenerator
+from safetybench.reports.csv_export import CsvExporter
 from safetybench.reports.html import HTMLReportGenerator
 from safetybench.reports.markdown import MarkdownReportGenerator
 
@@ -34,6 +35,10 @@ def cli() -> None:
 )
 @click.option("--title", default="Moderation Model Evaluation", help="Report title.")
 @click.option("--no-ci", is_flag=True, help="Skip confidence interval computation.")
+@click.option(
+    "--export", "export_path", default=None, type=click.Path(),
+    help="Also export raw metrics to a side-car file (.csv or .json).",
+)
 def evaluate(
     data: str,
     threshold: float,
@@ -41,6 +46,7 @@ def evaluate(
     fmt: str | None,
     title: str,
     no_ci: bool,
+    export_path: str | None,
 ) -> None:
     """Evaluate a moderation model on labeled data."""
     df = _load_data(data)
@@ -66,6 +72,15 @@ def evaluate(
         MarkdownReportGenerator().write(result, out_path, title=title)
 
     click.echo(f"Report written to {out_path}")
+
+    if export_path:
+        exp_path = Path(export_path)
+        exp_fmt = exp_path.suffix.lstrip(".")
+        if exp_fmt == "csv":
+            CsvExporter().write(result, exp_path)
+        else:
+            exp_path.write_text(json.dumps(result.to_dict(), indent=2, default=str))
+        click.echo(f"Data exported to {exp_path}")
 
 
 @cli.command()
