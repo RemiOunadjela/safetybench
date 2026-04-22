@@ -87,6 +87,68 @@ def appeal_overturn_rate(
     return float((overturned & appealed).sum() / n_appealed)
 
 
+def precision_at_k(
+    scores: np.ndarray,
+    labels: np.ndarray,
+    k: int,
+) -> float:
+    """Precision among the top-k highest-scored items.
+
+    Precision@k = (number of relevant items in top-k) / k
+
+    Useful for ranked moderation queues where reviewers process only the
+    highest-confidence predictions.
+
+    Args:
+        scores: Continuous model scores (higher = more likely positive).
+        labels: Binary ground-truth labels.
+        k: Number of top-ranked items to consider.
+
+    Returns:
+        Precision@k in [0, 1]. Returns 0.0 when k <= 0 or the input is empty.
+    """
+    scores = np.asarray(scores, dtype=np.float64)
+    labels = np.asarray(labels, dtype=bool)
+
+    if k <= 0 or len(scores) == 0:
+        return 0.0
+
+    k = min(k, len(scores))
+    top_k_indices = np.argsort(scores)[::-1][:k]
+    return float(labels[top_k_indices].sum() / k)
+
+
+def recall_at_k(
+    scores: np.ndarray,
+    labels: np.ndarray,
+    k: int,
+) -> float:
+    """Recall among the top-k highest-scored items.
+
+    Recall@k = (number of relevant items in top-k) / (total number of relevant items)
+
+    Answers: "What fraction of all violations does the top-k queue surface?"
+
+    Args:
+        scores: Continuous model scores (higher = more likely positive).
+        labels: Binary ground-truth labels.
+        k: Number of top-ranked items to consider.
+
+    Returns:
+        Recall@k in [0, 1]. Returns 0.0 when there are no positives or k <= 0.
+    """
+    scores = np.asarray(scores, dtype=np.float64)
+    labels = np.asarray(labels, dtype=bool)
+
+    n_positives = labels.sum()
+    if k <= 0 or len(scores) == 0 or n_positives == 0:
+        return 0.0
+
+    k = min(k, len(scores))
+    top_k_indices = np.argsort(scores)[::-1][:k]
+    return float(labels[top_k_indices].sum() / n_positives)
+
+
 def precision_recall_at_thresholds(
     scores: np.ndarray,
     labels: np.ndarray,

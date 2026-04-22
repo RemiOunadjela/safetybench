@@ -19,7 +19,9 @@ from safetybench.metrics.quality import (
     appeal_overturn_rate,
     false_positive_rate_at_threshold,
     false_positive_rate_curve,
+    precision_at_k,
     precision_recall_at_thresholds,
+    recall_at_k,
 )
 from safetybench.metrics.statistical import bootstrap_ci, mcnemar_test, permutation_test
 
@@ -122,6 +124,81 @@ class TestQualityMetrics:
         labels = rng.choice([True, False], 200)
         result = precision_recall_at_thresholds(scores, labels)
         assert len(result["precision"]) == len(result["thresholds"])
+
+
+class TestRankedMetrics:
+    """Tests for precision_at_k and recall_at_k."""
+
+    def test_precision_at_k_perfect(self):
+        # Top-3 are all positives
+        scores = np.array([0.9, 0.8, 0.7, 0.3, 0.2])
+        labels = np.array([True, True, True, False, False])
+        assert precision_at_k(scores, labels, k=3) == pytest.approx(1.0)
+
+    def test_precision_at_k_none(self):
+        # Top-2 are all negatives
+        scores = np.array([0.9, 0.8, 0.3, 0.2])
+        labels = np.array([False, False, True, True])
+        assert precision_at_k(scores, labels, k=2) == pytest.approx(0.0)
+
+    def test_precision_at_k_mixed(self):
+        # Top-4: scores [0.9, 0.8, 0.7, 0.6], labels [True, False, True, False] -> 2/4
+        scores = np.array([0.9, 0.8, 0.7, 0.6, 0.1])
+        labels = np.array([True, False, True, False, True])
+        assert precision_at_k(scores, labels, k=4) == pytest.approx(0.5)
+
+    def test_precision_at_k_clamps_to_n(self):
+        # k larger than array length should still work
+        scores = np.array([0.9, 0.5])
+        labels = np.array([True, False])
+        assert precision_at_k(scores, labels, k=100) == pytest.approx(0.5)
+
+    def test_precision_at_k_zero(self):
+        scores = np.array([0.9, 0.5])
+        labels = np.array([True, False])
+        assert precision_at_k(scores, labels, k=0) == 0.0
+
+    def test_precision_at_k_empty(self):
+        assert precision_at_k(np.array([]), np.array([]), k=5) == 0.0
+
+    def test_recall_at_k_perfect(self):
+        # All 3 positives are in top-3
+        scores = np.array([0.9, 0.8, 0.7, 0.2, 0.1])
+        labels = np.array([True, True, True, False, False])
+        assert recall_at_k(scores, labels, k=3) == pytest.approx(1.0)
+
+    def test_recall_at_k_none(self):
+        # Top-2 contain no positives; all positives are ranked lower
+        scores = np.array([0.9, 0.8, 0.3, 0.2])
+        labels = np.array([False, False, True, True])
+        assert recall_at_k(scores, labels, k=2) == pytest.approx(0.0)
+
+    def test_recall_at_k_partial(self):
+        # 4 positives total; top-2 captures 2 of them -> 0.5
+        scores = np.array([0.9, 0.8, 0.3, 0.2, 0.1])
+        labels = np.array([True, True, True, True, False])
+        assert recall_at_k(scores, labels, k=2) == pytest.approx(0.5)
+
+    def test_recall_at_k_no_positives(self):
+        scores = np.array([0.9, 0.5, 0.2])
+        labels = np.array([False, False, False])
+        assert recall_at_k(scores, labels, k=2) == 0.0
+
+    def test_recall_at_k_zero(self):
+        scores = np.array([0.9, 0.5])
+        labels = np.array([True, False])
+        assert recall_at_k(scores, labels, k=0) == 0.0
+
+    def test_recall_at_k_empty(self):
+        assert recall_at_k(np.array([]), np.array([]), k=5) == 0.0
+
+    def test_precision_recall_at_k_tradeoff(self):
+        # As k increases, recall should non-decrease and precision can vary
+        scores = np.array([0.9, 0.8, 0.7, 0.6, 0.5, 0.4])
+        labels = np.array([True, True, False, True, False, False])
+        recalls = [recall_at_k(scores, labels, k=i) for i in range(1, 7)]
+        # recall must be non-decreasing
+        assert all(recalls[i] <= recalls[i + 1] for i in range(len(recalls) - 1))
 
 
 class TestLatencyMetrics:
