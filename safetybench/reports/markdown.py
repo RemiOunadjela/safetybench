@@ -7,6 +7,15 @@ from pathlib import Path
 
 from safetybench.evaluation.runner import EvaluationResult
 
+_LATENCY_METRICS = {"median_time_to_action", "tta_p50", "tta_p90", "tta_p95", "tta_p99"}
+_LATENCY_LABELS = {
+    "median_time_to_action": "Median",
+    "tta_p50": "P50",
+    "tta_p90": "P90",
+    "tta_p95": "P95",
+    "tta_p99": "P99",
+}
+
 
 class MarkdownReportGenerator:
     """Generates Markdown evaluation reports."""
@@ -15,11 +24,15 @@ class MarkdownReportGenerator:
         self,
         result: EvaluationResult,
         title: str = "Moderation Model Evaluation",
+        verbose: bool = False,
     ) -> str:
         sections = [
             self._header(title, result),
-            self._metrics_table(result),
+            self._metrics_table(result, verbose=verbose),
         ]
+
+        if verbose and any(k in result.metrics for k in _LATENCY_METRICS):
+            sections.append(self._latency_table(result))
 
         if result.per_category:
             sections.append(self._category_table(result))
@@ -27,7 +40,7 @@ class MarkdownReportGenerator:
         if result.per_market:
             sections.append(self._market_table(result))
 
-        if result.confidence_intervals:
+        if result.confidence_intervals and not verbose:
             sections.append(self._ci_table(result))
 
         return "\n\n".join(sections) + "\n"
@@ -37,8 +50,9 @@ class MarkdownReportGenerator:
         result: EvaluationResult,
         path: str | Path,
         title: str = "Moderation Model Evaluation",
+        verbose: bool = False,
     ) -> None:
-        content = self.generate(result, title)
+        content = self.generate(result, title, verbose=verbose)
         Path(path).write_text(content)
 
     def _header(self, title: str, result: EvaluationResult) -> str:
@@ -53,16 +67,50 @@ class MarkdownReportGenerator:
         ]
         return "\n".join(lines)
 
-    def _metrics_table(self, result: EvaluationResult) -> str:
-        lines = [
-            "## Core Metrics",
-            "",
-            "| Metric | Value |",
-            "|--------|-------|",
-        ]
+    def _metrics_table(self, result: EvaluationResult, verbose: bool = False) -> str:
+        cis = result.confidence_intervals if verbose else {}
+        has_ci = bool(cis)
+
+        if has_ci:
+            lines = [
+                "## Core Metrics",
+                "",
+                "| Metric | Value | 95% CI |",
+                "|--------|-------|--------|",
+            ]
+        else:
+            lines = [
+                "## Core Metrics",
+                "",
+                "| Metric | Value |",
+                "|--------|-------|",
+            ]
+
         for name, value in result.metrics.items():
+            if verbose and name in _LATENCY_METRICS:
+                continue
             formatted = self._format_value(name, value)
-            lines.append(f"| {self._display_name(name)} | {formatted} |")
+            if has_ci and name in cis:
+                _, lo, hi = cis[name]
+                ci_str = f"[{lo:.4f}, {hi:.4f}]"
+                lines.append(f"| {self._display_name(name)} | {formatted} | {ci_str} |")
+            elif has_ci:
+                lines.append(f"| {self._display_name(name)} | {formatted} | — |")
+            else:
+                lines.append(f"| {self._display_name(name)} | {formatted} |")
+        return "\n".join(lines)
+
+    def _latency_table(self, result: EvaluationResult) -> str:
+        lines = [
+            "## Latency Percentiles",
+            "",
+            "| Percentile | Time to Action |",
+            "|------------|----------------|",
+        ]
+        for key in ("median_time_to_action", "tta_p50", "tta_p90", "tta_p95", "tta_p99"):
+            if key in result.metrics:
+                label = _LATENCY_LABELS[key]
+                lines.append(f"| {label} | {result.metrics[key]:.1f}s |")
         return "\n".join(lines)
 
     def _category_table(self, result: EvaluationResult) -> str:

@@ -39,6 +39,10 @@ def cli() -> None:
     "--export", "export_path", default=None, type=click.Path(),
     help="Also export raw metrics to a side-car file (.csv or .json).",
 )
+@click.option(
+    "--verbose", is_flag=True,
+    help="Show detailed metric breakdowns: inline CI bounds and latency percentiles.",
+)
 def evaluate(
     data: str,
     threshold: float,
@@ -47,6 +51,7 @@ def evaluate(
     title: str,
     no_ci: bool,
     export_path: str | None,
+    verbose: bool,
 ) -> None:
     """Evaluate a moderation model on labeled data."""
     df = _load_data(data)
@@ -69,7 +74,7 @@ def evaluate(
     elif fmt == "html":
         HTMLReportGenerator().write(result, out_path, title=title)
     else:
-        MarkdownReportGenerator().write(result, out_path, title=title)
+        MarkdownReportGenerator().write(result, out_path, title=title, verbose=verbose)
 
     click.echo(f"Report written to {out_path}")
 

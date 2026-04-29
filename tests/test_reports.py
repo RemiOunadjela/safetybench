@@ -118,6 +118,51 @@ class TestCsvExporter:
             assert "overall" in content
 
 
+class TestMarkdownReportVerbose:
+    def test_verbose_shows_ci_inline(self, eval_result):
+        gen = MarkdownReportGenerator()
+        md = gen.generate(eval_result, verbose=True)
+        assert "95% CI" in md
+        assert "[" in md and "]" in md
+
+    def test_verbose_shows_latency_section(self, eval_result):
+        gen = MarkdownReportGenerator()
+        md = gen.generate(eval_result, verbose=True)
+        assert "Latency Percentiles" in md
+        assert "P90" in md
+        assert "P99" in md
+
+    def test_verbose_omits_standalone_ci_table(self, eval_result):
+        gen = MarkdownReportGenerator()
+        md = gen.generate(eval_result, verbose=True)
+        assert "Confidence Intervals" not in md
+
+    def test_non_verbose_keeps_ci_table(self, eval_result):
+        gen = MarkdownReportGenerator()
+        md = gen.generate(eval_result, verbose=False)
+        assert "Confidence Intervals" in md
+        assert "| Metric | Value | 95% CI |" not in md
+
+    def test_verbose_cli_flag(self):
+        from click.testing import CliRunner
+        from safetybench.cli import cli
+        from safetybench.generators.synthetic import GeneratorConfig, SyntheticDataGenerator
+
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            df = SyntheticDataGenerator(GeneratorConfig(n_samples=500, seed=0)).generate()
+            df.to_csv("data.csv", index=False)
+            result = runner.invoke(cli, [
+                "evaluate", "--data", "data.csv",
+                "--output", "report.md",
+                "--verbose",
+            ])
+            assert result.exit_code == 0, result.output
+            content = Path("report.md").read_text()
+            assert "Latency Percentiles" in content
+            assert "95% CI" in content
+
+
 class TestEvaluateCLIExport:
     def test_export_csv_alongside_markdown(self, eval_result):
         """--export .csv should produce a side-car CSV next to the .md report."""
