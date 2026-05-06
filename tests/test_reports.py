@@ -46,6 +46,13 @@ class TestMarkdownReport:
         md = gen.generate(eval_result)
         assert "Confidence Intervals" in md
 
+    def test_contains_category_summary(self, eval_result):
+        gen = MarkdownReportGenerator()
+        md = gen.generate(eval_result)
+        assert "Category Summary Statistics" in md
+        assert "Mean" in md
+        assert "Std" in md
+
     def test_write_to_file(self, eval_result):
         gen = MarkdownReportGenerator()
         with tempfile.NamedTemporaryFile(suffix=".md", delete=False) as f:

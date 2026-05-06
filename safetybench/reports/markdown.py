@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
+
 from safetybench.evaluation.runner import EvaluationResult
 
 _LATENCY_METRICS = {"median_time_to_action", "tta_p50", "tta_p90", "tta_p95", "tta_p99"}
@@ -36,6 +38,7 @@ class MarkdownReportGenerator:
 
         if result.per_category:
             sections.append(self._category_table(result))
+            sections.append(self._category_summary_table(result))
 
         if result.per_market:
             sections.append(self._market_table(result))
@@ -129,6 +132,31 @@ class MarkdownReportGenerator:
                 for m in metric_names
             )
             lines.append(f"| {cat} | {vals} |")
+        return "\n".join(lines)
+
+    def _category_summary_table(self, result: EvaluationResult) -> str:
+        all_metrics: set[str] = set()
+        for cat_metrics in result.per_category.values():
+            all_metrics.update(cat_metrics.keys())
+        metric_names = sorted(all_metrics)
+
+        lines = [
+            "## Category Summary Statistics",
+            "",
+            "| Metric | Mean | Std | Min | Max |",
+            "|--------|------|-----|-----|-----|",
+        ]
+        for metric in metric_names:
+            vals = np.array([
+                m[metric] for m in result.per_category.values() if metric in m
+            ], dtype=float)
+            if len(vals) == 0:
+                continue
+            mean = self._format_value(metric, float(np.mean(vals)))
+            std = self._format_value(metric, float(np.std(vals)))
+            mn = self._format_value(metric, float(np.min(vals)))
+            mx = self._format_value(metric, float(np.max(vals)))
+            lines.append(f"| {self._display_name(metric)} | {mean} | {std} | {mn} | {mx} |")
         return "\n".join(lines)
 
     def _market_table(self, result: EvaluationResult) -> str:
