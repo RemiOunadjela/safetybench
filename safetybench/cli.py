@@ -19,25 +19,51 @@ from safetybench.reports.markdown import MarkdownReportGenerator
 @click.group()
 @click.version_option(package_name="safetybench")
 def cli() -> None:
-    """safetybench: Benchmarking Content Moderation at Scale."""
+    """safetybench: Benchmarking Content Moderation at Scale.
+
+    \b
+    Quick start:
+      safetybench generate --n 50000 --output data.csv
+      safetybench evaluate --data data.csv --output report.md
+      safetybench compare --reports run1.json --reports run2.json
+    """
 
 
-@cli.command()
+@cli.command(
+    epilog=(
+        "Examples:\n\n"
+        "  # Markdown report at default threshold\n"
+        "  safetybench evaluate --data scores.csv --output report.md\n\n"
+        "  # Stricter threshold, skip CI, export raw metrics to CSV\n"
+        "  safetybench evaluate --data scores.csv --threshold 0.7 --no-ci --export metrics.csv\n\n"
+        "  # HTML report with verbose CI bounds and latency percentiles\n"
+        "  safetybench evaluate --data scores.parquet --output report.html --verbose\n"
+    ),
+)
 @click.option(
     "--data", required=True, type=click.Path(exists=True),
-    help="Path to evaluation data (CSV or Parquet).",
+    help="Labeled CSV or Parquet file. Required columns: is_violation, model_score, flagged, actioned.",
 )
-@click.option("--threshold", default=0.5, type=float, help="Decision threshold.")
-@click.option("--output", default="report.md", type=click.Path(), help="Output path.")
+@click.option(
+    "--threshold", default=0.5, type=float,
+    help="Decision threshold for binary classification (0.0–1.0). Default: 0.5.",
+)
+@click.option(
+    "--output", default="report.md", type=click.Path(),
+    help="Report output path. Format inferred from extension: .md, .html, or .json.",
+)
 @click.option(
     "--format", "fmt", type=click.Choice(["md", "html", "json"]),
-    default=None, help="Output format. Inferred from extension if omitted.",
+    default=None, help="Override output format instead of inferring from extension.",
 )
 @click.option("--title", default="Moderation Model Evaluation", help="Report title.")
-@click.option("--no-ci", is_flag=True, help="Skip confidence interval computation.")
+@click.option(
+    "--no-ci", is_flag=True,
+    help="Skip bootstrap confidence intervals (faster on large datasets).",
+)
 @click.option(
     "--export", "export_path", default=None, type=click.Path(),
-    help="Also export raw metrics to a side-car file (.csv or .json).",
+    help="Also write raw metric values to a sidecar file (.csv or .json).",
 )
 @click.option(
     "--verbose", is_flag=True,
@@ -88,14 +114,23 @@ def evaluate(
         click.echo(f"Data exported to {exp_path}")
 
 
-@cli.command()
+@cli.command(
+    epilog=(
+        "Examples:\n\n"
+        "  # Compare two model versions saved as JSON reports\n"
+        "  safetybench compare --reports model_v1.json --reports model_v2.json\n\n"
+        "  # Compare three runs and write to a named file\n"
+        "  safetybench compare --reports a.json --reports b.json --reports c.json --output comparison.md\n"
+    ),
+)
 @click.option(
     "--reports", required=True, multiple=True,
-    type=click.Path(exists=True), help="JSON report files to compare.",
+    type=click.Path(exists=True),
+    help="JSON evaluation report file. Pass once per model (e.g. --reports v1.json --reports v2.json).",
 )
 @click.option(
     "--output", default="comparison.md", type=click.Path(),
-    help="Output comparison report.",
+    help="Output path for the comparison table (Markdown).",
 )
 def compare(reports: tuple[str, ...], output: str) -> None:
     """Compare evaluation results from multiple runs."""
@@ -124,16 +159,38 @@ def compare(reports: tuple[str, ...], output: str) -> None:
     click.echo(f"Comparison written to {output}")
 
 
-@cli.command()
+@cli.command(
+    epilog=(
+        "Examples:\n\n"
+        "  # 10k samples for a single US market\n"
+        "  safetybench generate --n 10000 --output data.csv\n\n"
+        "  # 100k multi-market dataset with higher violation rate\n"
+        "  safetybench generate --n 100000 --markets us,br,de,in --violation-rate 0.08 --output big.parquet\n\n"
+        "  # Specific categories for a focused evaluation\n"
+        "  safetybench generate --categories csam,terrorism,self_harm --n 5000 --seed 7\n"
+    ),
+)
 @click.option(
     "--categories", default="hate_speech,harassment,spam",
-    help="Comma-separated violation categories.",
+    help="Comma-separated violation categories (e.g. hate_speech,harassment,spam).",
 )
-@click.option("--markets", default="us", help="Comma-separated market codes.")
-@click.option("--n", "n_samples", default=10_000, type=int, help="Number of samples to generate.")
-@click.option("--output", default="synthetic_data.csv", type=click.Path(), help="Output file path.")
-@click.option("--seed", default=42, type=int, help="Random seed.")
-@click.option("--violation-rate", default=0.05, type=float, help="Base violation rate.")
+@click.option(
+    "--markets", default="us",
+    help="Comma-separated market codes (e.g. us,br,de,in). Controls sample distribution.",
+)
+@click.option(
+    "--n", "n_samples", default=10_000, type=int,
+    help="Total number of content items to generate.",
+)
+@click.option(
+    "--output", default="synthetic_data.csv", type=click.Path(),
+    help="Output file path. Use .csv for CSV or .parquet for Parquet.",
+)
+@click.option("--seed", default=42, type=int, help="Random seed for reproducibility.")
+@click.option(
+    "--violation-rate", default=0.05, type=float,
+    help="Base violation rate across the dataset (0.0–1.0). Default: 0.05.",
+)
 def generate(
     categories: str,
     markets: str,
